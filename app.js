@@ -1,6 +1,7 @@
 const express = require( "express" );
 const bodyParser = require( "body-parser" );
 const mongoose = require( "mongoose" );
+const encrypt = require( "mongoose-encryption" );
 
 //Creating an app constant and use EJS as its view engine
 const app = express(  );
@@ -30,7 +31,9 @@ app.get( "/login", ( req, res ) => {
 mongoose.connect( "mongodb://localhost:27017/userDB" );
 
 //Schema and Model
-const userSchema = mongoose.Schema( {
+const Schema = mongoose.Schema;
+
+const userSchema = new Schema( {
     email: {
         type: String,
         required: [ true, "!! No email address specified !!" ]
@@ -40,6 +43,10 @@ const userSchema = mongoose.Schema( {
         required: [ true, "!! No password specified !!" ]
     }
 } );
+
+//Encryption
+const secret = "HugeSecretHere!"
+userSchema.plugin( encrypt, { secret: secret, encryptedFields: [ "password" ] } );
 
 const User = mongoose.model( "User", userSchema );
 
