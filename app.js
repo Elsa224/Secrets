@@ -10,6 +10,22 @@ app.use( bodyParser.urlencoded( { extended: true } ) );
 //app using modules ( express.static to load local files on the server, bodyParser )
 app.use( express.static( `${ __dirname }/public` ) );
 
+//Web Routes
+app.get( "/", ( req, res ) => {
+    res.render( "home" )
+} );
+
+
+app.get( "/register", ( req, res ) => {
+    res.render( "register" )
+} );
+
+
+app.get( "/login", ( req, res ) => {
+    res.render( "login" )
+} );
+
+
 //Connect to the database
 mongoose.connect( "mongodb://localhost:27017/userDB" );
 
@@ -63,7 +79,7 @@ app.post( "/login", ( req, res ) => {
 
 let APP_PORT = process.env.PORT;
 if ( APP_PORT == null || APP_PORT == "" )
-    {APP_PORT = 3000};
+    { APP_PORT = 3000 }
 
 //Spin up the server
 app.listen( APP_PORT, (  ) => {
