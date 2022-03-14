@@ -10,6 +10,57 @@ app.use( bodyParser.urlencoded( { extended: true } ) );
 //app using modules ( express.static to load local files on the server, bodyParser )
 app.use( express.static( `${ __dirname }/public` ) );
 
+//Connect to the database
+mongoose.connect( "mongodb://localhost:27017/userDB" );
+
+//Schema and Model
+const userSchema = mongoose.Schema( {
+    email: {
+        type: String,
+        required: [ true, "!! No email address specified !!" ]
+    },
+    password: {
+        type: String,
+        required: [ true, "!! No password specified !!" ]
+    }
+} );
+
+const User = mongoose.model( "User", userSchema );
+
+//POST /register
+app.post( "/register", ( req, res ) => {
+    const newUser = new User( {  
+        email: req.body.username,
+        password: req.body.password
+    } );
+
+    newUser.save( ( error ) => {
+        if( error )
+            console.log( "error: ", error );
+        else    
+            res.render("secrets");
+
+    } );
+} );
+
+//POST /login
+app.post( "/login", ( req, res ) => {
+    const username = req.body.username;
+    const password = req.body.password;
+    User.findOne( { email: username }, ( error, foundUser ) => {
+        if( error )
+            console.log( "error: ", error );
+        else {
+            if( foundUser ) {
+                if( foundUser.password === password ) //means that you're successfully logged in !
+                    res.render( "secrets" );
+            }
+        }
+    } );
+
+} );
+
+
 let APP_PORT = process.env.PORT;
 if ( APP_PORT == null || APP_PORT == "" )
     {APP_PORT = 3000};
@@ -18,3 +69,4 @@ if ( APP_PORT == null || APP_PORT == "" )
 app.listen( APP_PORT, (  ) => {
     console.log( `Server has started successfully on port ${ APP_PORT }...\n` );
 } );
+
