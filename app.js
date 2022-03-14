@@ -1,10 +1,11 @@
+require( "dotenv" ).config(); //to define environnement variables
 const express = require( "express" );
 const bodyParser = require( "body-parser" );
 const mongoose = require( "mongoose" );
 const encrypt = require( "mongoose-encryption" );
 
 //Creating an app constant and use EJS as its view engine
-const app = express(  );
+const app = express( );
 app.set( "view engine", "ejs" );
 app.use( bodyParser.urlencoded( { extended: true } ) );
 
@@ -13,17 +14,17 @@ app.use( express.static( `${ __dirname }/public` ) );
 
 //Web Routes
 app.get( "/", ( req, res ) => {
-    res.render( "home" )
+    res.render( "home" );
 } );
 
 
 app.get( "/register", ( req, res ) => {
-    res.render( "register" )
+    res.render( "register" );
 } );
 
 
 app.get( "/login", ( req, res ) => {
-    res.render( "login" )
+    res.render( "login" );
 } );
 
 
@@ -45,8 +46,7 @@ const userSchema = new Schema( {
 } );
 
 //Encryption
-const secret = "HugeSecretHere!"
-userSchema.plugin( encrypt, { secret: secret, encryptedFields: [ "password" ] } );
+userSchema.plugin( encrypt, { secret: process.env.SECRET_KEY, encryptedFields: [ "password" ] } );
 
 const User = mongoose.model( "User", userSchema );
 
