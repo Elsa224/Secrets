@@ -2,8 +2,9 @@ require( "dotenv" ).config(); //to define environnement variables
 const express = require( "express" );
 const bodyParser = require( "body-parser" );
 const mongoose = require( "mongoose" );
-const bcrypt = require( "bcrypt" ); //Hashing password method - Bcrypt is more secure
-const saltRounds = 10; //Sal
+const session = require( "express-session" );
+const passport = require( "passport" ); //using passport to add cookies and session
+const passportLocalMongoose = require( "passport-local-mongoose" );
 
 //Creating an app constant and use EJS as its view engine
 const app = express( );
@@ -12,6 +13,46 @@ app.use( bodyParser.urlencoded( { extended: true } ) );
 
 //app using modules ( express.static to load local files on the server, bodyParser )
 app.use( express.static( `${ __dirname }/public` ) );
+
+//Setting up our session
+app.use( session( { 
+    secret: process.env.SESSION_SECRET_KEY,
+    resave: false,
+    saveUninitialized: false
+} ) );
+
+//Initialize passport
+app.use( passport.initialize() );
+app.use( passport.session() );
+
+//Connect to the database
+mongoose.connect( "mongodb://localhost:27017/userDB" );
+
+//Schema
+const Schema = mongoose.Schema;
+
+const userSchema = new Schema( {
+    email: {
+        type: String,
+        //required: [ true, "!! No email address specified !!" ]
+    },
+    password: {
+        type: String,
+        //required: [ true, "!! No password specified !!" ]
+    }
+} );
+
+//Passport plugin
+userSchema.plugin( passportLocalMongoose );
+
+//Model
+const User = mongoose.model( "User", userSchema );
+
+//Configure passport local
+passport.use( User.createStrategy() );
+
+passport.serializeUser( User.serializeUser() );
+passport.deserializeUser( User.deserializeUser() );
 
 //Web Routes
 app.get( "/", ( req, res ) => {
@@ -28,66 +69,51 @@ app.get( "/login", ( req, res ) => {
     res.render( "login" );
 } );
 
-
-//Connect to the database
-mongoose.connect( "mongodb://localhost:27017/userDB" );
-
-//Schema and Model
-const Schema = mongoose.Schema;
-
-const userSchema = new Schema( {
-    email: {
-        type: String,
-        required: [ true, "!! No email address specified !!" ]
-    },
-    password: {
-        type: String,
-        required: [ true, "!! No password specified !!" ]
-    }
+app.get( "/secrets", ( req, res ) => {
+    if( req.isAuthenticated() )
+        res.render( "secrets" );
+    else
+        res.redirect( "/login" );
 } );
 
-//Encryption
-
-const User = mongoose.model( "User", userSchema );
+app.get( "/logout", ( req, res ) => {
+    req.logout();
+    res.redirect( "/" );
+} );
 
 //POST /register
-
-//Hashing the password
 app.post( "/register", ( req, res ) => {
-    bcrypt.hash( req.body.password , saltRounds, ( error, hash ) => {
-    
-        const newUser = new User( {  
-            email: req.body.username,
-            password: hash
-        } );
-    
-        newUser.save( ( error ) => {
-            if( error )
-                console.log( "error: ", error );
-            else    
-                res.render("secrets");
-    
-        } );
+    User.register( { username: req.body.username }, req.body.password, ( error, user ) => {
+        if( error ) {
+            console.log( error );
+            res.redirect( "/register" );
+        }
+        else {
+            passport.authenticate( "local" )( req, res, () => {
+                res.redirect( "/secrets" );
+            } );
+        }
     } );
+   
 } );
 
 //POST /login
 app.post( "/login", ( req, res ) => {
-    const username = req.body.username;
-    const password = req.body.password;
-    User.findOne( { email: username }, ( error, foundUser ) => {
-        if( error )
-            console.log( "error: ", error );
-        else {
-            if( foundUser ) {
-                bcrypt.compare( password, foundUser.password, ( error, result ) => {
-                    if( result === true )
-                        res.render( "secrets" );
-                } ) 
-            }
-        }
+    const user = new User( {
+        username: req.body.username,
+        password: req.body.password
     } );
 
+    //Use passport to login the user
+    req.login( user, ( error ) => {
+        if( error )
+            console.log( error );
+        else
+            passport.authenticate( "local" )( req, res, () => {
+                res.redirect( "/secrets" );
+            } );
+
+    } );
 } );
 
 
