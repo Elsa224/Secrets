@@ -2,7 +2,8 @@ require( "dotenv" ).config(); //to define environnement variables
 const express = require( "express" );
 const bodyParser = require( "body-parser" );
 const mongoose = require( "mongoose" );
-const md5 = require( "md5" );
+const bcrypt = require( "bcrypt" ); //Hashing password method - Bcrypt is more secure
+const saltRounds = 10; //Sal
 
 //Creating an app constant and use EJS as its view engine
 const app = express( );
@@ -50,32 +51,39 @@ const userSchema = new Schema( {
 const User = mongoose.model( "User", userSchema );
 
 //POST /register
+
+//Hashing the password
 app.post( "/register", ( req, res ) => {
-    const newUser = new User( {  
-        email: req.body.username,
-        password: md5( req.body.password )
-    } );
-
-    newUser.save( ( error ) => {
-        if( error )
-            console.log( "error: ", error );
-        else    
-            res.render("secrets");
-
+    bcrypt.hash( req.body.password , saltRounds, ( error, hash ) => {
+    
+        const newUser = new User( {  
+            email: req.body.username,
+            password: hash
+        } );
+    
+        newUser.save( ( error ) => {
+            if( error )
+                console.log( "error: ", error );
+            else    
+                res.render("secrets");
+    
+        } );
     } );
 } );
 
 //POST /login
 app.post( "/login", ( req, res ) => {
     const username = req.body.username;
-    const password = md5( req.body.password );
+    const password = req.body.password;
     User.findOne( { email: username }, ( error, foundUser ) => {
         if( error )
             console.log( "error: ", error );
         else {
             if( foundUser ) {
-                if( foundUser.password === password ) //means that you're successfully logged in !
-                    res.render( "secrets" );
+                bcrypt.compare( password, foundUser.password, ( error, result ) => {
+                    if( result === true )
+                        res.render( "secrets" );
+                } ) 
             }
         }
     } );
