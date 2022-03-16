@@ -5,7 +5,14 @@ const mongoose = require( "mongoose" );
 const session = require( "express-session" );
 const passport = require( "passport" ); //using passport to add cookies and session
 const passportLocalMongoose = require( "passport-local-mongoose" );
-const GoogleStrategy = require('passport-google-oauth20').Strategy; // OAuth with Google
+const GoogleStrategy = require("passport-google-oauth20").Strategy; // OAuth with Google
+const FacebookStrategy = require( "passport-facebook" ).Strategy;
+const findOrCreate = require( "mongoose-findorcreate" );
+const https = require("https");
+const fs = require("fs");
+
+const key = fs.readFileSync("C:\\Users\\Carmen\\localhost-key.pem");
+const cert= fs.readFileSync("C:\\Users\\Carmen\\localhost.pem");
 
 //Creating an app constant and use EJS as its view engine
 const app = express( );
@@ -40,11 +47,18 @@ const userSchema = new Schema( {
     password: {
         type: String,
         //required: [ true, "!! No password specified !!" ]
+    },
+    googleID: {
+        type: String
+    },
+    facebookID: {
+        type: String
     }
 } );
 
-//Passport plugin
+//Plugins
 userSchema.plugin( passportLocalMongoose );
+userSchema.plugin( findOrCreate );
 
 //Model
 const User = mongoose.model( "User", userSchema );
@@ -52,18 +66,43 @@ const User = mongoose.model( "User", userSchema );
 //Configure passport local
 passport.use( User.createStrategy() );
 
-passport.serializeUser( User.serializeUser() );
-passport.deserializeUser( User.deserializeUser() );
+passport.serializeUser( (user, cb) => {
+    process.nextTick( () => {
+        cb( null, { id: user.id, username: user.username } );
+    });
+});
+
+passport.deserializeUser( (user, cb) => {
+    process.nextTick( () => {
+        return cb( null, user );
+    });
+});
 
 passport.use( new GoogleStrategy( { 
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/google/secrets"
-  }, ( accessToken, refreshToken, profile, cb ) => {
-        User.findOrCreate({ googleId: profile.id }, function (err, user) {
-            return cb(err, user);
+    callbackURL: "https://localhost:3000/auth/google/secrets",
+    passReqToCallback: true,
+    scope: [ "https://www.googleapis.com/auth/userinfo.profile" ]
+    },( req, accessToken, refreshToken, profile, cb ) => {
+        console.log( profile );
+        User.findOrCreate({ googleID: profile.id }, (error, user) => {
+            return cb(error, user);
         } );
     }
+) );
+
+passport.use( new FacebookStrategy( {
+    clientID: process.env.FACEBOOK_APP_ID,
+    clientSecret: process.env.FACEBOOK_APP_SECRET,
+    callbackURL: "https://localhost:3000/auth/facebook/secrets",
+    passReqToCallback: true,
+    }, ( req, accessToken, refreshToken, profile, cb ) => {
+        console.log( profile );
+        User.findOrCreate( { facebookID: profile.id }, ( error, user ) => {
+            return cb( error, user )
+        } );
+    } 
 ) );
 
 //Web Routes
@@ -71,6 +110,23 @@ app.get( "/", ( req, res ) => {
     res.render( "home" );
 } );
 
+app.get( "/auth/google", 
+    passport.authenticate( "google", { scope: [ "https://www.googleapis.com/auth/userinfo.profile" ] } )  );
+
+app.get( "/auth/google/secrets", 
+    passport.authenticate( "google", { failureRedirect: "/login" } ), ( req, res ) => {
+        //Successful authentication !! ✔️✔️😍 redirect to secrets
+        res.redirect( "/secrets" );
+    } );
+
+app.get( "/auth/facebook",
+    passport.authenticate( "facebook" , { scope: [ "public_profile", "email" ] } ) );
+
+app.get( "/auth/facebook/secrets",
+    passport.authenticate("facebook", { failureRedirect: "/login" } ), (req, res) => {
+        //Successful authentication !! ✔️✔️😍 redirect to secrets
+        res.redirect("/secrets");
+  } );
 
 app.get( "/register", ( req, res ) => {
     res.render( "register" );
@@ -133,8 +189,14 @@ let APP_PORT = process.env.PORT;
 if ( APP_PORT == null || APP_PORT == "" )
     { APP_PORT = 3000 }
 
-//Spin up the server
-app.listen( APP_PORT, (  ) => {
-    console.log( `Server has started successfully on port ${ APP_PORT }...\n` );
-} );
+// //Spin up the server
+// app.listen( APP_PORT, (  ) => {
+//     console.log( `Server has started successfully on port ${ APP_PORT }...\n` );
+// } );
+
+const server = https.createServer({ key, cert }, app);
+
+server.listen( APP_PORT, () => {
+    console.log( `Server has started successfully on https://localhost:${ APP_PORT }...\n` );
+});
 
