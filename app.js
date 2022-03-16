@@ -6,12 +6,12 @@ const session = require( "express-session" );
 const passport = require( "passport" ); //using passport to add cookies and session
 const passportLocalMongoose = require( "passport-local-mongoose" );
 const GoogleStrategy = require("passport-google-oauth20").Strategy; // OAuth with Google
-const FacebookStrategy = require( "passport-facebook" ).Strategy;
+const FacebookStrategy = require( "passport-facebook" ).Strategy; //OAuth with Facebook
 const findOrCreate = require( "mongoose-findorcreate" );
 const https = require("https");
-const fs = require("fs");
+const fs = require("fs"); //File System
 
-const key = fs.readFileSync("C:\\Users\\Carmen\\localhost-key.pem");
+const key = fs.readFileSync("C:\\Users\\Carmen\\localhost-key.pem"); //Certificate
 const cert= fs.readFileSync("C:\\Users\\Carmen\\localhost.pem");
 
 //Creating an app constant and use EJS as its view engine
@@ -52,6 +52,9 @@ const userSchema = new Schema( {
         type: String
     },
     facebookID: {
+        type: String
+    },
+    secret: {
         type: String
     }
 } );
@@ -132,17 +135,48 @@ app.get( "/register", ( req, res ) => {
     res.render( "register" );
 } );
 
-
 app.get( "/login", ( req, res ) => {
     res.render( "login" );
 } );
 
 app.get( "/secrets", ( req, res ) => {
-    if( req.isAuthenticated() )
-        res.render( "secrets" );
-    else
-        res.redirect( "/login" );
+    User.find( { "secret": { $ne: null } }, ( error, foundUsers ) => { //secret field not equal to null
+        if( error )
+            console.log( error );
+        else {
+            if( foundUsers )
+                res.render( "secrets", { usersWithSecrets: foundUsers } );      
+        }
+    } ); 
 } );
+
+
+app.route( "/submit" )
+    .get( ( req, res ) => {
+        if( req.isAuthenticated() )
+            res.render( "submit" );
+        else
+            res.redirect( "/login" );
+    } )
+
+    .post( ( req, res ) => {    // Add a new secret
+        const submittedSecret = req.body.secret;
+        console.log( "The user info is : ", req.user );
+
+        User.findById( req.user.id, ( error, foundUser ) => {
+            if( error )
+                console.log( error );
+            else {
+                if( foundUser ) {   //if we found the user,
+                    foundUser.secret = submittedSecret ; //then save his secret in the document field
+                    foundUser.save( () => {
+                        res.redirect( "/secrets" );
+                    } );
+                }
+            }
+        } );
+    } );
+
 
 app.get( "/logout", ( req, res ) => {
     req.logout();
@@ -185,18 +219,13 @@ app.post( "/login", ( req, res ) => {
 } );
 
 
+
 let APP_PORT = process.env.PORT;
 if ( APP_PORT == null || APP_PORT == "" )
     { APP_PORT = 3000 }
-
-// //Spin up the server
-// app.listen( APP_PORT, (  ) => {
-//     console.log( `Server has started successfully on port ${ APP_PORT }...\n` );
-// } );
 
 const server = https.createServer({ key, cert }, app);
 
 server.listen( APP_PORT, () => {
     console.log( `Server has started successfully on https://localhost:${ APP_PORT }...\n` );
 });
-
